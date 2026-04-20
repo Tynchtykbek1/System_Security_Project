@@ -8,6 +8,7 @@ from uuid import uuid4
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from app import audit, config, crypto_utils, storage
 from app.models import (
@@ -36,6 +37,12 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.get("/", response_class=RedirectResponse, include_in_schema=False)
+def root() -> RedirectResponse:
+    """Redirect the base cloud URL to the FastAPI docs page."""
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/health", response_model=HealthResponse)

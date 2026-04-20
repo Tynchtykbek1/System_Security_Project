@@ -11,7 +11,7 @@ from uuid import uuid4
 from cryptography.fernet import InvalidToken
 from cryptography.hazmat.primitives import serialization
 from fastapi import Body, FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import audit, config, crypto_utils, integrity, storage
 from app.models import (
@@ -31,6 +31,12 @@ from app.models import (
 )
 
 app = FastAPI(title="Secure Edge-Cloud Edge Service")
+
+
+@app.get("/", response_class=RedirectResponse, include_in_schema=False)
+def root() -> RedirectResponse:
+    """Redirect the base edge URL to the browser demo page."""
+    return RedirectResponse(url="/demo-page")
 
 
 @app.get("/health", response_model=HealthResponse)
