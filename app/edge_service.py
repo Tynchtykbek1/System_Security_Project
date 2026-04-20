@@ -299,15 +299,14 @@ def encrypt_and_backup(plaintext: dict[str, Any] = Body(...)) -> EncryptAndBacku
     integrity_hash = integrity.compute_sha256_bytes(ciphertext)
 
     storage.save_local_vault_ciphertext(EDGE_NODE_ID, ciphertext)
-    storage.save_local_vault_metadata(
-        EDGE_NODE_ID,
+    _update_local_metadata(
         {
             "node_id": EDGE_NODE_ID,
             "vault_version": vault_version,
             "ciphertext_b64": ciphertext_b64,
             "integrity_hash": integrity_hash,
             "updated_at": _utc_now().isoformat(),
-        },
+        }
     )
     _append_audit_event(
         actor=EDGE_NODE_ID,
@@ -317,7 +316,6 @@ def encrypt_and_backup(plaintext: dict[str, Any] = Body(...)) -> EncryptAndBacku
         details={"vault_version": vault_version},
     )
 
-    _ensure_cloud_registration()
     cloud_response = _store_backup_in_cloud(
         vault_version=vault_version,
         ciphertext_b64=ciphertext_b64,
@@ -346,7 +344,6 @@ def recover_from_cloud(request_body: dict[str, Any] | None = Body(None)) -> Reco
     if not isinstance(request_reason, str):
         raise HTTPException(status_code=400, detail="request_reason must be a string")
 
-    _ensure_cloud_registration()
     backup = _retrieve_backup_from_cloud(request_reason=request_reason)
     if not backup.found or backup.ciphertext_b64 is None or backup.integrity_hash is None:
         _append_audit_event(
@@ -402,15 +399,14 @@ def recover_from_cloud(request_body: dict[str, Any] | None = Body(None)) -> Reco
     plaintext = json.loads(plaintext_bytes.decode("utf-8"))
 
     storage.save_local_vault_ciphertext(EDGE_NODE_ID, ciphertext)
-    storage.save_local_vault_metadata(
-        EDGE_NODE_ID,
+    _update_local_metadata(
         {
             "node_id": EDGE_NODE_ID,
             "vault_version": backup.vault_version,
             "ciphertext_b64": backup.ciphertext_b64,
             "integrity_hash": backup.integrity_hash,
             "updated_at": _utc_now().isoformat(),
-        },
+        }
     )
     _append_audit_event(
         actor=EDGE_NODE_ID,
@@ -537,7 +533,7 @@ def _public_key_to_b64(public_key: Any) -> str:
 
 def _next_vault_version() -> int:
     """Return the next local vault version based on stored metadata."""
-    metadata = storage.load_local_vault_metadata(EDGE_NODE_ID) or {}
+    metadata = _load_local_metadata()
     current_version = metadata.get("vault_version")
     if isinstance(current_version, int) and current_version >= 1:
         return current_version + 1
@@ -591,8 +587,15 @@ def _sign_payload(message: bytes) -> str:
     return base64.b64encode(signature).decode("ascii")
 
 
-def _ensure_cloud_registration() -> RegisterNodeResponse:
-    """Register this edge node with the cloud before backup operations."""
+def _ensure_cloud_registration(force: bool = False) -> RegisterNodeResponse:
+    """Register this edge node with the cloud when local state says it is needed."""
+    if not force and _is_cloud_registration_known():
+        return RegisterNodeResponse(
+            registered=True,
+            node_id=EDGE_NODE_ID,
+            message="Node already registered locally",
+        )
+
     timestamp = _utc_now()
     public_key_b64 = identity().public_key_b64
     nonce = _generate_nonce()
@@ -612,6 +615,7 @@ def _ensure_cloud_registration() -> RegisterNodeResponse:
     )
     response = _post_to_cloud("/register-node", signed_request.model_dump(mode="json"))
     registration = RegisterNodeResponse.model_validate(response)
+    _mark_cloud_registration_state(True)
     _append_audit_event(
         actor=EDGE_NODE_ID,
         target=config.CLOUD,
@@ -628,6 +632,7 @@ def _store_backup_in_cloud(
     integrity_hash: str,
 ) -> StoreBackupResponse:
     """Send locally encrypted ciphertext to the cloud using the shared signed format."""
+    _ensure_cloud_registration()
     timestamp = _utc_now()
     nonce = _generate_nonce()
     payload = {
@@ -648,12 +653,20 @@ def _store_backup_in_cloud(
         timestamp=timestamp,
         nonce=nonce,
     )
-    response = _post_to_cloud("/store-backup", signed_request.model_dump(mode="json"))
+    try:
+        response = _post_to_cloud("/store-backup", signed_request.model_dump(mode="json"))
+    except HTTPException as exc:
+        if not _is_not_registered_error(exc):
+            raise
+        _mark_cloud_registration_state(False)
+        _ensure_cloud_registration(force=True)
+        response = _post_to_cloud("/store-backup", signed_request.model_dump(mode="json"))
     return StoreBackupResponse.model_validate(response)
 
 
 def _retrieve_backup_from_cloud(request_reason: str) -> RetrieveBackupResponse:
     """Request the stored ciphertext from the cloud using the shared signed format."""
+    _ensure_cloud_registration()
     timestamp = _utc_now()
     nonce = _generate_nonce()
     payload = {
@@ -670,7 +683,14 @@ def _retrieve_backup_from_cloud(request_reason: str) -> RetrieveBackupResponse:
         timestamp=timestamp,
         nonce=nonce,
     )
-    response = _post_to_cloud("/retrieve-backup", signed_request.model_dump(mode="json"))
+    try:
+        response = _post_to_cloud("/retrieve-backup", signed_request.model_dump(mode="json"))
+    except HTTPException as exc:
+        if not _is_not_registered_error(exc):
+            raise
+        _mark_cloud_registration_state(False)
+        _ensure_cloud_registration(force=True)
+        response = _post_to_cloud("/retrieve-backup", signed_request.model_dump(mode="json"))
     return RetrieveBackupResponse.model_validate(response)
 
 
@@ -721,6 +741,36 @@ def _extract_error_detail(exc: error.HTTPError) -> str:
     if isinstance(detail, str):
         return detail
     return "Cloud request failed"
+
+
+def _load_local_metadata() -> dict[str, Any]:
+    """Load this edge node's local metadata as a mutable dictionary."""
+    return storage.load_local_vault_metadata(EDGE_NODE_ID) or {}
+
+
+def _update_local_metadata(updates: dict[str, Any]) -> None:
+    """Merge new values into the existing local metadata record."""
+    metadata = _load_local_metadata()
+    metadata.update(updates)
+    storage.save_local_vault_metadata(EDGE_NODE_ID, metadata)
+
+
+def _is_cloud_registration_known() -> bool:
+    """Return whether local state says this edge is already registered in the cloud."""
+    return _load_local_metadata().get("cloud_registered") is True
+
+
+def _mark_cloud_registration_state(registered: bool) -> None:
+    """Persist the local cloud-registration state for this edge node."""
+    updates: dict[str, Any] = {"cloud_registered": registered}
+    if registered:
+        updates["cloud_registered_at"] = _utc_now().isoformat()
+    _update_local_metadata(updates)
+
+
+def _is_not_registered_error(exc: HTTPException) -> bool:
+    """Return whether the cloud rejected the request because the node is not registered."""
+    return exc.status_code == 403 and exc.detail == "Node is not registered"
 
 
 def _append_audit_event(
