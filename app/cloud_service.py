@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from app import audit, config, crypto_utils, storage
 from app.models import (
@@ -22,6 +23,19 @@ from app.models import (
 )
 
 app = FastAPI(title="Secure Edge-Cloud Cloud Service")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:8101",
+        "http://127.0.0.1:8102",
+        "http://127.0.0.1:8103",
+        "http://localhost:8101",
+        "http://localhost:8102",
+        "http://localhost:8103",
+    ],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health", response_model=HealthResponse)

@@ -11,6 +11,7 @@ from uuid import uuid4
 from cryptography.fernet import InvalidToken
 from cryptography.hazmat.primitives import serialization
 from fastapi import Body, FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 
 from app import audit, config, crypto_utils, integrity, storage
 from app.models import (
@@ -44,6 +45,245 @@ def identity() -> IdentityResponse:
     public_key = _load_public_key()
     public_key_b64 = _public_key_to_b64(public_key)
     return IdentityResponse(node_id=EDGE_NODE_ID, public_key_b64=public_key_b64)
+
+
+@app.get("/demo-page", response_class=HTMLResponse)
+def demo_page() -> HTMLResponse:
+    """Render a small browser-based demo page for exercising the edge-cloud flow."""
+    return HTMLResponse(
+        f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Edge Demo Page</title>
+  <style>
+    body {{
+      font-family: Consolas, "Courier New", monospace;
+      margin: 24px;
+      background: #f6f8fb;
+      color: #1f2937;
+    }}
+    h1, h2 {{
+      margin-bottom: 8px;
+    }}
+    .grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }}
+    .card {{
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }}
+    textarea {{
+      width: 100%;
+      min-height: 140px;
+      padding: 10px;
+      border: 1px solid #9ca3af;
+      border-radius: 6px;
+      resize: vertical;
+      box-sizing: border-box;
+      font: inherit;
+    }}
+    button {{
+      margin-right: 8px;
+      margin-top: 10px;
+      padding: 10px 14px;
+      border: 1px solid #1f2937;
+      border-radius: 6px;
+      background: #1f2937;
+      color: #ffffff;
+      cursor: pointer;
+      font: inherit;
+    }}
+    button.secondary {{
+      background: #ffffff;
+      color: #1f2937;
+    }}
+    pre {{
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #111827;
+      color: #e5e7eb;
+      padding: 12px;
+      border-radius: 6px;
+      min-height: 72px;
+      overflow-x: auto;
+    }}
+    .status {{
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: #e5e7eb;
+    }}
+  </style>
+</head>
+<body>
+  <h1>Secure Storage Demo</h1>
+  <p>Edge node: <strong>{EDGE_NODE_ID}</strong> | Cloud URL: <strong>{_cloud_base_url()}</strong></p>
+
+  <div id="status" class="status">Loading demo state...</div>
+
+  <div class="card">
+    <h2>Plaintext Input</h2>
+    <textarea id="payloadInput">{{"message":"hello from browser demo","source":"demo-page"}}</textarea>
+    <div>
+      <button id="encryptButton">Encrypt and Backup</button>
+      <button id="recoverButton" class="secondary">Recover from Cloud</button>
+      <button id="refreshButton" class="secondary">Refresh Status</button>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top: 16px;">
+    <div class="card">
+      <h2>Edge Health</h2>
+      <pre id="edgeHealth"></pre>
+    </div>
+    <div class="card">
+      <h2>Cloud Health</h2>
+      <pre id="cloudHealth"></pre>
+    </div>
+    <div class="card">
+      <h2>Edge Identity</h2>
+      <pre id="edgeIdentity"></pre>
+    </div>
+    <div class="card">
+      <h2>Latest Recovered Plaintext</h2>
+      <pre id="recoveredPlaintext">No recovery run yet.</pre>
+    </div>
+    <div class="card">
+      <h2>Local Storage State</h2>
+      <pre id="localStorage"></pre>
+    </div>
+    <div class="card">
+      <h2>Edge Audit Log</h2>
+      <pre id="edgeAuditLog"></pre>
+    </div>
+    <div class="card">
+      <h2>Cloud Access Log</h2>
+      <pre id="cloudAccessLog"></pre>
+    </div>
+  </div>
+
+  <script>
+    const cloudBaseUrl = "{_cloud_base_url()}";
+
+    function formatJson(value) {{
+      return JSON.stringify(value, null, 2);
+    }}
+
+    function setBlock(id, value) {{
+      document.getElementById(id).textContent = typeof value === "string" ? value : formatJson(value);
+    }}
+
+    function setStatus(message, isError = false) {{
+      const status = document.getElementById("status");
+      status.textContent = message;
+      status.style.background = isError ? "#fee2e2" : "#e5e7eb";
+      status.style.color = isError ? "#991b1b" : "#111827";
+    }}
+
+    async function fetchJson(url, options) {{
+      const response = await fetch(url, options);
+      let data;
+      try {{
+        data = await response.json();
+      }} catch (err) {{
+        data = {{ detail: "Non-JSON response" }};
+      }}
+      if (!response.ok) {{
+        const message = data && data.detail ? data.detail : response.statusText;
+        throw new Error(url + " -> " + response.status + " " + message);
+      }}
+      return data;
+    }}
+
+    function buildPayload() {{
+      const raw = document.getElementById("payloadInput").value.trim();
+      if (!raw) {{
+        return {{ message: "" }};
+      }}
+
+      try {{
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {{
+          return parsed;
+        }}
+        return {{ message: raw }};
+      }} catch (err) {{
+        return {{ message: raw }};
+      }}
+    }}
+
+    async function refreshSections() {{
+      const [edgeHealth, cloudHealth, edgeIdentity, localStorage, edgeAuditLog, cloudAccessLog] = await Promise.all([
+        fetchJson("/health"),
+        fetchJson(cloudBaseUrl + "/health"),
+        fetchJson("/identity"),
+        fetchJson("/local-storage"),
+        fetchJson("/audit-log"),
+        fetchJson(cloudBaseUrl + "/access-log"),
+      ]);
+
+      setBlock("edgeHealth", edgeHealth);
+      setBlock("cloudHealth", cloudHealth);
+      setBlock("edgeIdentity", edgeIdentity);
+      setBlock("localStorage", localStorage);
+      setBlock("edgeAuditLog", edgeAuditLog);
+      setBlock("cloudAccessLog", cloudAccessLog);
+    }}
+
+    async function encryptAndBackup() {{
+      setStatus("Encrypting locally and backing up to cloud...");
+      const payload = buildPayload();
+      const result = await fetchJson("/encrypt-and-backup", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify(payload),
+      }});
+      await refreshSections();
+      setStatus("Encrypt and backup completed.");
+      return result;
+    }}
+
+    async function recoverFromCloud() {{
+      setStatus("Recovering backup from cloud...");
+      const result = await fetchJson("/recover-from-cloud", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify({{ request_reason: "recovery" }}),
+      }});
+      setBlock("recoveredPlaintext", result.recovered_plaintext ?? {{ message: "No plaintext returned" }});
+      await refreshSections();
+      setStatus("Recovery completed.");
+      return result;
+    }}
+
+    async function runAction(action) {{
+      try {{
+        await action();
+      }} catch (err) {{
+        setStatus(err.message, true);
+      }}
+    }}
+
+    document.getElementById("encryptButton").addEventListener("click", () => runAction(encryptAndBackup));
+    document.getElementById("recoverButton").addEventListener("click", () => runAction(recoverFromCloud));
+    document.getElementById("refreshButton").addEventListener("click", () => runAction(refreshSections));
+
+    runAction(async () => {{
+      await refreshSections();
+      setStatus("Demo page ready.");
+    }});
+  </script>
+</body>
+</html>"""
+    )
 
 
 @app.post("/encrypt-and-backup", response_model=EncryptAndBackupResponse)
