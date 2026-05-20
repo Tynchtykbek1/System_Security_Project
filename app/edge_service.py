@@ -64,120 +64,438 @@ def demo_page() -> HTMLResponse:
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Edge Demo Page</title>
   <style>
+    :root {{
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --panel-soft: #f8fafc;
+      --border: #d9e2ec;
+      --text: #17202a;
+      --muted: #5f6f82;
+      --accent: #1f6feb;
+      --accent-dark: #164f9f;
+      --success: #117a48;
+      --danger: #b42318;
+      --warning-bg: #fff4e5;
+      --code-bg: #101828;
+    }}
+
     body {{
-      font-family: Consolas, "Courier New", monospace;
-      margin: 24px;
-      background: #f6f8fb;
-      color: #1f2937;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.45;
     }}
-    h1, h2 {{
-      margin-bottom: 8px;
+
+    header {{
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      padding: 24px clamp(18px, 4vw, 42px);
     }}
+
+    main {{
+      padding: 24px clamp(18px, 4vw, 42px) 42px;
+      max-width: 1280px;
+      margin: 0 auto;
+    }}
+
+    h1 {{
+      margin: 0 0 6px;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }}
+
+    h2 {{
+      margin: 0 0 14px;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }}
+
+    h3 {{
+      margin: 0;
+      font-size: 14px;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+    }}
+
+    .subtitle {{
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }}
+
     .grid {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 16px;
     }}
+
+    .wide-grid {{
+      display: grid;
+      grid-template-columns: minmax(320px, 0.9fr) minmax(360px, 1.1fr);
+      gap: 16px;
+      align-items: start;
+    }}
+
     .card {{
-      background: #ffffff;
-      border: 1px solid #d1d5db;
+      background: var(--panel);
+      border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 16px;
+      padding: 18px;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     }}
+
+    .summary-card {{
+      min-height: 112px;
+    }}
+
+    .summary-value {{
+      margin-top: 10px;
+      font-size: 28px;
+      font-weight: 700;
+    }}
+
+    .summary-note {{
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 14px;
+    }}
+
+    .section {{
+      margin-top: 18px;
+    }}
+
+    .field-grid {{
+      display: grid;
+      gap: 10px;
+    }}
+
+    .field-row {{
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 10px 0;
+      border-bottom: 1px solid #edf1f5;
+    }}
+
+    .field-row:last-child {{
+      border-bottom: 0;
+    }}
+
+    .label {{
+      color: var(--muted);
+      font-size: 14px;
+    }}
+
+    .value {{
+      font-weight: 700;
+      text-align: right;
+      overflow-wrap: anywhere;
+    }}
+
+    .pill {{
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 13px;
+      font-weight: 700;
+      background: #eef6ff;
+      color: var(--accent-dark);
+    }}
+
+    .pill.success {{
+      background: #eaf7ef;
+      color: var(--success);
+    }}
+
+    .pill.failure {{
+      background: #fdecec;
+      color: var(--danger);
+    }}
+
     textarea {{
       width: 100%;
-      min-height: 140px;
-      padding: 10px;
-      border: 1px solid #9ca3af;
+      min-height: 150px;
+      padding: 12px;
+      border: 1px solid #b6c2cf;
       border-radius: 6px;
       resize: vertical;
       box-sizing: border-box;
-      font: inherit;
+      font: 15px/1.45 Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background: #ffffff;
     }}
+
+    .help-text {{
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }}
+
     button {{
       margin-right: 8px;
       margin-top: 10px;
       padding: 10px 14px;
-      border: 1px solid #1f2937;
+      border: 1px solid var(--accent);
       border-radius: 6px;
-      background: #1f2937;
+      background: var(--accent);
       color: #ffffff;
       cursor: pointer;
-      font: inherit;
+      font: 700 14px Arial, Helvetica, sans-serif;
     }}
+
+    button:hover {{
+      background: var(--accent-dark);
+      border-color: var(--accent-dark);
+    }}
+
     button.secondary {{
       background: #ffffff;
-      color: #1f2937;
+      color: var(--accent);
     }}
+
+    button.secondary:hover {{
+      background: #eef6ff;
+      color: var(--accent-dark);
+    }}
+
+    button.small {{
+      margin: 8px 0 0;
+      padding: 7px 10px;
+      font-size: 13px;
+    }}
+
     pre {{
-      margin: 0;
+      margin: 10px 0 0;
       white-space: pre-wrap;
       word-break: break-word;
-      background: #111827;
+      background: var(--code-bg);
       color: #e5e7eb;
       padding: 12px;
       border-radius: 6px;
-      min-height: 72px;
       overflow-x: auto;
+      font: 13px/1.45 Consolas, "Courier New", monospace;
     }}
+
+    details {{
+      margin-top: 12px;
+      border-top: 1px solid #edf1f5;
+      padding-top: 10px;
+    }}
+
+    summary {{
+      cursor: pointer;
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 14px;
+    }}
+
     .status {{
-      margin-bottom: 12px;
-      padding: 10px 12px;
+      margin: 18px 0;
+      padding: 12px 14px;
       border-radius: 6px;
-      background: #e5e7eb;
+      background: #eaf7ef;
+      color: #0f5132;
+      border: 1px solid #badbcc;
+      font-weight: 700;
+    }}
+
+    .status.error {{
+      background: #fdecec;
+      color: var(--danger);
+      border-color: #f5c2c7;
+    }}
+
+    .event-list {{
+      display: grid;
+      gap: 8px;
+    }}
+
+    .event {{
+      display: grid;
+      grid-template-columns: 150px 90px 1fr 170px;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid #edf1f5;
+      border-radius: 6px;
+      background: var(--panel-soft);
+      font-size: 14px;
+    }}
+
+    .event-action {{
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }}
+
+    .event-detail, .event-time {{
+      color: var(--muted);
+      overflow-wrap: anywhere;
+    }}
+
+    .content-panel {{
+      background: var(--panel-soft);
+      border: 1px solid #edf1f5;
+      border-radius: 6px;
+      padding: 14px;
+      min-height: 60px;
+      overflow-wrap: anywhere;
+    }}
+
+    .structured-view {{
+      display: grid;
+      gap: 8px;
+    }}
+
+    .structured-row {{
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e5ebf1;
+    }}
+
+    .structured-row:last-child {{
+      border-bottom: 0;
+      padding-bottom: 0;
+    }}
+
+    .empty {{
+      color: var(--muted);
+      font-style: italic;
+    }}
+
+    @media (max-width: 900px) {{
+      .wide-grid {{
+        grid-template-columns: 1fr;
+      }}
+
+      .event {{
+        grid-template-columns: 1fr;
+      }}
+
+      .value {{
+        text-align: left;
+      }}
+
+      .field-row {{
+        flex-direction: column;
+        gap: 4px;
+      }}
     }}
   </style>
 </head>
 <body>
-  <h1>Secure Storage Demo</h1>
-  <p>Edge node: <strong>{EDGE_NODE_ID}</strong> | Cloud URL: <strong>{_cloud_base_url()}</strong></p>
+  <header>
+    <h1>Secure Edge-Cloud Storage Demo</h1>
+    <p class="subtitle">Edge node <strong>{EDGE_NODE_ID}</strong> connected to cloud service <strong>{_cloud_base_url()}</strong></p>
+  </header>
 
-  <div id="status" class="status">Loading demo state...</div>
+  <main>
+    <div id="status" class="status">Loading demo state...</div>
 
-  <div class="card">
-    <h2>Plaintext Input</h2>
-    <textarea id="payloadInput">{{"message":"hello from browser demo","source":"demo-page"}}</textarea>
-    <div>
-      <button id="encryptButton">Encrypt and Backup</button>
-      <button id="recoverButton" class="secondary">Recover from Cloud</button>
-      <button id="refreshButton" class="secondary">Refresh Status</button>
+    <div class="grid">
+      <div class="card summary-card">
+        <h3>Edge Status</h3>
+        <div id="edgeStatusSummary" class="summary-value">Loading</div>
+        <div id="edgeStatusNote" class="summary-note"></div>
+      </div>
+      <div class="card summary-card">
+        <h3>Cloud Status</h3>
+        <div id="cloudStatusSummary" class="summary-value">Loading</div>
+        <div id="cloudStatusNote" class="summary-note"></div>
+      </div>
+      <div class="card summary-card">
+        <h3>Vault Version</h3>
+        <div id="vaultSummary" class="summary-value">-</div>
+        <div id="keySummary" class="summary-note">Local key: unknown</div>
+      </div>
+      <div class="card summary-card">
+        <h3>Last Action</h3>
+        <div id="lastActionSummary" class="summary-value">Ready</div>
+        <div id="lastActionNote" class="summary-note">No action run yet.</div>
+      </div>
     </div>
-  </div>
 
-  <div class="grid" style="margin-top: 16px;">
-    <div class="card">
-      <h2>Edge Health</h2>
-      <pre id="edgeHealth"></pre>
+    <div class="wide-grid section">
+      <div class="card">
+        <h2>Plaintext Input</h2>
+        <textarea id="payloadInput">hello from browser demo</textarea>
+        <p class="help-text">Enter plain text naturally. If the input is a valid JSON object, it will be sent as that object; otherwise it will be sent as {{ "message": "your text" }}.</p>
+        <div>
+          <button id="encryptButton">Encrypt and Backup</button>
+          <button id="recoverButton" class="secondary">Recover from Cloud</button>
+          <button id="refreshButton" class="secondary">Refresh Status</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Recovered Content</h2>
+        <div id="recoveredView" class="content-panel empty">No recovery run yet.</div>
+        <details>
+          <summary>Show raw JSON</summary>
+          <pre id="recoveredRaw">null</pre>
+        </details>
+      </div>
     </div>
-    <div class="card">
-      <h2>Cloud Health</h2>
-      <pre id="cloudHealth"></pre>
+
+    <div class="grid section">
+      <div class="card">
+        <h2>Edge Identity</h2>
+        <div id="identityView" class="field-grid"></div>
+        <details>
+          <summary>Show raw JSON</summary>
+          <pre id="edgeIdentityRaw"></pre>
+        </details>
+      </div>
+
+      <div class="card">
+        <h2>Local Storage State</h2>
+        <div id="localStorageView" class="field-grid"></div>
+        <details>
+          <summary>Show raw JSON</summary>
+          <pre id="localStorageRaw"></pre>
+        </details>
+      </div>
+
+      <div class="card">
+        <h2>Service Health</h2>
+        <div id="healthView" class="field-grid"></div>
+        <details>
+          <summary>Show raw JSON</summary>
+          <pre id="healthRaw"></pre>
+        </details>
+      </div>
     </div>
-    <div class="card">
-      <h2>Edge Identity</h2>
-      <pre id="edgeIdentity"></pre>
+
+    <div class="grid section">
+      <div class="card">
+        <h2>Edge Audit Log</h2>
+        <div id="edgeAuditLogView" class="event-list"></div>
+        <details>
+          <summary>Show raw JSON</summary>
+          <pre id="edgeAuditLogRaw"></pre>
+        </details>
+      </div>
+
+      <div class="card">
+        <h2>Cloud Access Log</h2>
+        <div id="cloudAccessLogView" class="event-list"></div>
+        <details>
+          <summary>Show raw JSON</summary>
+          <pre id="cloudAccessLogRaw"></pre>
+        </details>
+      </div>
     </div>
-    <div class="card">
-      <h2>Latest Recovered Plaintext</h2>
-      <pre id="recoveredPlaintext">No recovery run yet.</pre>
-    </div>
-    <div class="card">
-      <h2>Local Storage State</h2>
-      <pre id="localStorage"></pre>
-    </div>
-    <div class="card">
-      <h2>Edge Audit Log</h2>
-      <pre id="edgeAuditLog"></pre>
-    </div>
-    <div class="card">
-      <h2>Cloud Access Log</h2>
-      <pre id="cloudAccessLog"></pre>
-    </div>
-  </div>
+  </main>
 
   <script>
     const cloudBaseUrl = "{_cloud_base_url()}";
+    let lastRecoveredPlaintext = null;
 
     function formatJson(value) {{
       return JSON.stringify(value, null, 2);
@@ -190,8 +508,54 @@ def demo_page() -> HTMLResponse:
     function setStatus(message, isError = false) {{
       const status = document.getElementById("status");
       status.textContent = message;
-      status.style.background = isError ? "#fee2e2" : "#e5e7eb";
-      status.style.color = isError ? "#991b1b" : "#111827";
+      status.classList.toggle("error", isError);
+    }}
+
+    function text(value, fallback = "-") {{
+      if (value === null || value === undefined || value === "") {{
+        return fallback;
+      }}
+      return String(value);
+    }}
+
+    function shorten(value, head = 12, tail = 8) {{
+      const raw = text(value, "");
+      if (!raw) {{
+        return "-";
+      }}
+      if (raw.length <= head + tail + 3) {{
+        return raw;
+      }}
+      return raw.slice(0, head) + "..." + raw.slice(-tail);
+    }}
+
+    function formatTime(value) {{
+      if (!value) {{
+        return "-";
+      }}
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {{
+        return text(value);
+      }}
+      return date.toLocaleString();
+    }}
+
+    function fieldRow(label, value) {{
+      return '<div class="field-row"><span class="label">' + escapeHtml(label) + '</span><span class="value">' + escapeHtml(text(value)) + '</span></div>';
+    }}
+
+    function escapeHtml(value) {{
+      return text(value, "").replace(/[&<>"']/g, (char) => ({{
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }}[char]));
+    }}
+
+    function setFields(id, rows) {{
+      document.getElementById(id).innerHTML = rows.map(([label, value]) => fieldRow(label, value)).join("");
     }}
 
     async function fetchJson(url, options) {{
@@ -226,6 +590,109 @@ def demo_page() -> HTMLResponse:
       }}
     }}
 
+    function renderStatusCards(edgeHealth, cloudHealth, localStorage) {{
+      document.getElementById("edgeStatusSummary").innerHTML = '<span class="pill success">' + escapeHtml((edgeHealth.status || "unknown").toUpperCase()) + '</span>';
+      document.getElementById("edgeStatusNote").textContent = "Edge node: " + text(edgeHealth.node_id);
+      document.getElementById("cloudStatusSummary").innerHTML = '<span class="pill success">' + escapeHtml((cloudHealth.status || "unknown").toUpperCase()) + '</span>';
+      document.getElementById("cloudStatusNote").textContent = "Cloud node: " + text(cloudHealth.node_id);
+      document.getElementById("vaultSummary").textContent = text(localStorage.vault_version, "No vault");
+      document.getElementById("keySummary").textContent = "Local key: " + (localStorage.has_local_key ? "Present" : "Missing");
+    }}
+
+    function renderIdentity(identity) {{
+      setFields("identityView", [
+        ["Node ID", identity.node_id],
+        ["Public key", shorten(identity.public_key_b64)],
+      ]);
+      setBlock("edgeIdentityRaw", identity);
+    }}
+
+    function renderLocalStorage(localStorage) {{
+      setFields("localStorageView", [
+        ["Vault version", localStorage.vault_version ?? "No local vault"],
+        ["Has local key", localStorage.has_local_key ? "yes" : "no"],
+        ["Integrity hash", shorten(localStorage.integrity_hash, 16, 10)],
+        ["Ciphertext", localStorage.ciphertext_b64 ? shorten(localStorage.ciphertext_b64, 16, 10) : "not stored"],
+      ]);
+      setBlock("localStorageRaw", localStorage);
+    }}
+
+    function renderHealth(edgeHealth, cloudHealth) {{
+      setFields("healthView", [
+        ["Edge status", edgeHealth.status || "unknown"],
+        ["Edge service", edgeHealth.service],
+        ["Edge node", edgeHealth.node_id],
+        ["Cloud status", cloudHealth.status || "unknown"],
+        ["Cloud service", cloudHealth.service],
+        ["Cloud node", cloudHealth.node_id],
+      ]);
+      setBlock("healthRaw", {{ edge: edgeHealth, cloud: cloudHealth }});
+    }}
+
+    function detailSummary(details) {{
+      if (!details || typeof details !== "object") {{
+        return "";
+      }}
+      if (details.vault_version !== undefined) {{
+        return "vault v" + details.vault_version;
+      }}
+      if (details.request_reason !== undefined) {{
+        return text(details.request_reason);
+      }}
+      if (details.reason !== undefined) {{
+        return text(details.reason);
+      }}
+      if (details.result !== undefined) {{
+        return text(details.result);
+      }}
+      if (details.message !== undefined) {{
+        return text(details.message);
+      }}
+      return "";
+    }}
+
+    function renderEvents(targetId, log) {{
+      const entries = Array.isArray(log.entries) ? log.entries.slice(-8).reverse() : [];
+      const target = document.getElementById(targetId);
+      if (entries.length === 0) {{
+        target.innerHTML = '<div class="empty">No events recorded.</div>';
+        return;
+      }}
+      target.innerHTML = entries.map((entry) => {{
+        const statusClass = entry.status === "success" ? "success" : "failure";
+        return '<div class="event">'
+          + '<div class="event-action">' + escapeHtml(entry.action) + '</div>'
+          + '<div><span class="pill ' + statusClass + '">' + escapeHtml(entry.status) + '</span></div>'
+          + '<div class="event-detail">' + escapeHtml(detailSummary(entry.details)) + '</div>'
+          + '<div class="event-time">' + escapeHtml(formatTime(entry.timestamp)) + '</div>'
+          + '</div>';
+      }}).join("");
+    }}
+
+    function renderRecovered(value) {{
+      lastRecoveredPlaintext = value;
+      const target = document.getElementById("recoveredView");
+      if (!value || typeof value !== "object") {{
+        target.className = "content-panel empty";
+        target.textContent = "No recovery run yet.";
+        setBlock("recoveredRaw", value);
+        return;
+      }}
+
+      const keys = Object.keys(value);
+      const messageKey = keys.find((key) => ["message", "text", "content"].includes(key));
+      target.className = "content-panel";
+      if (keys.length === 1 && messageKey) {{
+        target.textContent = text(value[messageKey]);
+      }} else {{
+        target.innerHTML = '<div class="structured-view">' + keys.map((key) => {{
+          const displayValue = typeof value[key] === "object" ? formatJson(value[key]) : text(value[key]);
+          return '<div class="structured-row"><strong>' + escapeHtml(key) + '</strong><span>' + escapeHtml(displayValue) + '</span></div>';
+        }}).join("") + '</div>';
+      }}
+      setBlock("recoveredRaw", value);
+    }}
+
     async function refreshSections() {{
       const [edgeHealth, cloudHealth, edgeIdentity, localStorage, edgeAuditLog, cloudAccessLog] = await Promise.all([
         fetchJson("/health"),
@@ -236,12 +703,17 @@ def demo_page() -> HTMLResponse:
         fetchJson(cloudBaseUrl + "/access-log"),
       ]);
 
-      setBlock("edgeHealth", edgeHealth);
-      setBlock("cloudHealth", cloudHealth);
-      setBlock("edgeIdentity", edgeIdentity);
-      setBlock("localStorage", localStorage);
-      setBlock("edgeAuditLog", edgeAuditLog);
-      setBlock("cloudAccessLog", cloudAccessLog);
+      renderStatusCards(edgeHealth, cloudHealth, localStorage);
+      renderIdentity(edgeIdentity);
+      renderLocalStorage(localStorage);
+      renderHealth(edgeHealth, cloudHealth);
+      renderEvents("edgeAuditLogView", edgeAuditLog);
+      renderEvents("cloudAccessLogView", cloudAccessLog);
+      setBlock("edgeAuditLogRaw", edgeAuditLog);
+      setBlock("cloudAccessLogRaw", cloudAccessLog);
+      if (lastRecoveredPlaintext !== null) {{
+        renderRecovered(lastRecoveredPlaintext);
+      }}
     }}
 
     async function encryptAndBackup() {{
@@ -254,6 +726,8 @@ def demo_page() -> HTMLResponse:
       }});
       await refreshSections();
       setStatus("Encrypt and backup completed.");
+      document.getElementById("lastActionSummary").textContent = "Backup completed";
+      document.getElementById("lastActionNote").textContent = "Vault version " + text(result.vault_version);
       return result;
     }}
 
@@ -264,9 +738,11 @@ def demo_page() -> HTMLResponse:
         headers: {{ "Content-Type": "application/json" }},
         body: JSON.stringify({{ request_reason: "recovery" }}),
       }});
-      setBlock("recoveredPlaintext", result.recovered_plaintext ?? {{ message: "No plaintext returned" }});
+      renderRecovered(result.recovered_plaintext ?? null);
       await refreshSections();
       setStatus("Recovery completed.");
+      document.getElementById("lastActionSummary").textContent = "Recovery completed";
+      document.getElementById("lastActionNote").textContent = "Vault version " + text(result.vault_version);
       return result;
     }}
 
@@ -274,7 +750,7 @@ def demo_page() -> HTMLResponse:
       try {{
         await action();
       }} catch (err) {{
-        setStatus(err.message, true);
+        setStatus(err.message || "Request failed", true);
       }}
     }}
 
@@ -284,6 +760,7 @@ def demo_page() -> HTMLResponse:
 
     runAction(async () => {{
       await refreshSections();
+      renderRecovered(null);
       setStatus("Demo page ready.");
     }});
   </script>
@@ -402,7 +879,21 @@ def recover_from_cloud(request_body: dict[str, Any] | None = Body(None)) -> Reco
             },
         )
         raise HTTPException(status_code=422, detail="Unable to decrypt recovered backup") from exc
-    plaintext = json.loads(plaintext_bytes.decode("utf-8"))
+
+    try:
+        plaintext = json.loads(plaintext_bytes.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        _append_audit_event(
+            actor=EDGE_NODE_ID,
+            target=EDGE_NODE_ID,
+            action="request_denied",
+            status="failure",
+            details={
+                "reason": "recovered plaintext is not valid JSON",
+                "vault_version": backup.vault_version,
+            },
+        )
+        raise HTTPException(status_code=422, detail="Recovered plaintext is not valid JSON") from exc
 
     storage.save_local_vault_ciphertext(EDGE_NODE_ID, ciphertext)
     _update_local_metadata(
@@ -662,6 +1153,9 @@ def _store_backup_in_cloud(
     try:
         response = _post_to_cloud("/store-backup", signed_request.model_dump(mode="json"))
     except HTTPException as exc:
+        if _is_invalid_signature_error(exc):
+            _mark_cloud_registration_state(False)
+            _raise_cloud_key_mismatch()
         if not _is_not_registered_error(exc):
             raise
         _mark_cloud_registration_state(False)
@@ -692,6 +1186,9 @@ def _retrieve_backup_from_cloud(request_reason: str) -> RetrieveBackupResponse:
     try:
         response = _post_to_cloud("/retrieve-backup", signed_request.model_dump(mode="json"))
     except HTTPException as exc:
+        if _is_invalid_signature_error(exc):
+            _mark_cloud_registration_state(False)
+            _raise_cloud_key_mismatch()
         if not _is_not_registered_error(exc):
             raise
         _mark_cloud_registration_state(False)
@@ -733,7 +1230,17 @@ def _post_to_cloud(path: str, payload: dict[str, Any]) -> dict[str, Any]:
         )
         raise HTTPException(status_code=503, detail="Cloud service unavailable") from exc
 
-    return json.loads(response_body)
+    try:
+        return json.loads(response_body)
+    except json.JSONDecodeError as exc:
+        _append_audit_event(
+            actor=EDGE_NODE_ID,
+            target=config.CLOUD,
+            action="request_denied",
+            status="failure",
+            details={"path": path, "reason": "cloud returned invalid JSON"},
+        )
+        raise HTTPException(status_code=502, detail="Cloud returned invalid JSON") from exc
 
 
 def _extract_error_detail(exc: error.HTTPError) -> str:
@@ -756,9 +1263,12 @@ def _load_local_metadata() -> dict[str, Any]:
 
 def _update_local_metadata(updates: dict[str, Any]) -> None:
     """Merge new values into the existing local metadata record."""
-    metadata = _load_local_metadata()
-    metadata.update(updates)
-    storage.save_local_vault_metadata(EDGE_NODE_ID, metadata)
+    vault_path = config.get_local_vault_path(EDGE_NODE_ID)
+    metadata_path = vault_path.with_name(f"{vault_path.stem}_metadata.json")
+    with storage.file_lock(metadata_path):
+        metadata = _load_local_metadata()
+        metadata.update(updates)
+        storage.save_local_vault_metadata(EDGE_NODE_ID, metadata)
 
 
 def _is_cloud_registration_known() -> bool:
@@ -777,6 +1287,19 @@ def _mark_cloud_registration_state(registered: bool) -> None:
 def _is_not_registered_error(exc: HTTPException) -> bool:
     """Return whether the cloud rejected the request because the node is not registered."""
     return exc.status_code == 403 and exc.detail == "Node is not registered"
+
+
+def _is_invalid_signature_error(exc: HTTPException) -> bool:
+    """Return whether the cloud rejected the request because keys no longer match."""
+    return exc.status_code == 401 and exc.detail == "Invalid signature"
+
+
+def _raise_cloud_key_mismatch() -> None:
+    """Raise a clear error for stale local registration after a cloud signature failure."""
+    raise HTTPException(
+        status_code=409,
+        detail="Cloud registration key mismatch; local cloud_registered state was cleared",
+    )
 
 
 def _append_audit_event(

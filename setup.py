@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app import audit, config, crypto_utils
+from app import audit, config, crypto_utils, storage
 
 
 def main() -> None:
@@ -74,6 +74,7 @@ def _ensure_ed25519_keypair(node_id: str) -> None:
     crypto_utils.save_public_key_to_file(public_key, public_key_path)
     print(f"    created {private_key_path}")
     print(f"    created {public_key_path}")
+    _clear_cloud_registration_metadata(node_id)
 
 
 def _ensure_fernet_key(node_id: str) -> None:
@@ -150,6 +151,24 @@ def _write_json_file(path: Path, data: object) -> None:
 def _get_local_vault_metadata_path(node_id: str) -> Path:
     vault_path = config.get_local_vault_path(node_id)
     return vault_path.with_name(f"{vault_path.stem}_metadata.json")
+
+
+def _clear_cloud_registration_metadata(node_id: str) -> None:
+    metadata_path = _get_local_vault_metadata_path(node_id)
+    with storage.file_lock(metadata_path):
+        metadata = storage.load_local_vault_metadata(node_id)
+        if metadata is None:
+            return
+
+        changed = False
+        for field_name in ("cloud_registered", "cloud_registered_at"):
+            if field_name in metadata:
+                metadata.pop(field_name)
+                changed = True
+
+        if changed:
+            storage.save_local_vault_metadata(node_id, metadata)
+            print("  - Cleared stale cloud registration metadata")
 
 
 if __name__ == "__main__":

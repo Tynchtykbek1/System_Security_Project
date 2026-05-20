@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -10,7 +11,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
-from app import audit, config, crypto_utils, storage
+from app import audit, config, crypto_utils, integrity, storage
 from app.models import (
     AuditLogResponse,
     AuditEvent,
@@ -56,12 +57,10 @@ def register_node(request: RegisterNodeRequest) -> RegisterNodeResponse:
     """Register a node public key after validating freshness, nonce, and signature."""
     node_id = _require_edge_node(request.node_id)
     _require_fresh_timestamp(request.timestamp)
-    _require_unused_nonce(node_id, request.nonce, request.timestamp)
 
     public_key = _load_public_key_from_b64(request.public_key_b64)
     signed_message = _build_register_message(request)
     if not _verify_request_signature(public_key, signed_message, request.signature_b64):
-        _record_nonce(node_id, request.nonce, request.timestamp)
         _append_audit_event(
             actor=node_id,
             target=config.CLOUD,
@@ -71,45 +70,45 @@ def register_node(request: RegisterNodeRequest) -> RegisterNodeResponse:
         )
         raise HTTPException(status_code=401, detail="Invalid signature")
 
-    registry = storage.load_registered_nodes()
-    existing_record = registry.get(node_id)
-    if isinstance(existing_record, dict):
-        existing_public_key = existing_record.get("public_key_b64")
-        if existing_public_key == request.public_key_b64:
-            _record_nonce(node_id, request.nonce, request.timestamp)
+    _claim_nonce(node_id, request.nonce, request.timestamp)
+
+    with storage.file_lock(config.get_registered_nodes_path()):
+        registry = storage.load_registered_nodes()
+        existing_record = registry.get(node_id)
+        if isinstance(existing_record, dict):
+            existing_public_key = existing_record.get("public_key_b64")
+            if existing_public_key == request.public_key_b64:
+                _append_audit_event(
+                    actor=node_id,
+                    target=config.CLOUD,
+                    action="register_node",
+                    status="success",
+                    details={"node_id": node_id, "result": "already_registered"},
+                )
+                return RegisterNodeResponse(
+                    registered=True,
+                    node_id=node_id,
+                    message="Node already registered with the same public key",
+                )
+
             _append_audit_event(
                 actor=node_id,
                 target=config.CLOUD,
-                action="register_node",
-                status="success",
-                details={"node_id": node_id, "result": "already_registered"},
+                action="request_denied",
+                status="failure",
+                details={"reason": "public key mismatch for existing registration", "node_id": node_id},
             )
-            return RegisterNodeResponse(
-                registered=True,
-                node_id=node_id,
-                message="Node already registered with the same public key",
+            raise HTTPException(
+                status_code=409,
+                detail="Node is already registered with a different public key",
             )
 
-        _record_nonce(node_id, request.nonce, request.timestamp)
-        _append_audit_event(
-            actor=node_id,
-            target=config.CLOUD,
-            action="request_denied",
-            status="failure",
-            details={"reason": "public key mismatch for existing registration", "node_id": node_id},
-        )
-        raise HTTPException(
-            status_code=409,
-            detail="Node is already registered with a different public key",
-        )
-
-    registry[node_id] = {
-        "node_id": node_id,
-        "public_key_b64": request.public_key_b64,
-        "registered_at": _utc_now().isoformat(),
-    }
-    storage.save_registered_nodes(registry)
-    _record_nonce(node_id, request.nonce, request.timestamp)
+        registry[node_id] = {
+            "node_id": node_id,
+            "public_key_b64": request.public_key_b64,
+            "registered_at": _utc_now().isoformat(),
+        }
+        storage.save_registered_nodes(registry)
 
     _append_audit_event(
         actor=node_id,
@@ -130,12 +129,10 @@ def store_backup(request: StoreBackupRequest) -> StoreBackupResponse:
     """Store ciphertext backup metadata for a registered node without decrypting it."""
     node_id = _require_edge_node(request.node_id)
     _require_fresh_timestamp(request.timestamp)
-    _require_unused_nonce(node_id, request.nonce, request.timestamp)
 
     public_key = _get_registered_public_key(node_id)
     signed_message = _build_store_backup_message(request)
     if not _verify_request_signature(public_key, signed_message, request.signature_b64):
-        _record_nonce(node_id, request.nonce, request.timestamp)
         _append_audit_event(
             actor=node_id,
             target=config.CLOUD,
@@ -144,6 +141,28 @@ def store_backup(request: StoreBackupRequest) -> StoreBackupResponse:
             details={"reason": "invalid store-backup signature"},
         )
         raise HTTPException(status_code=401, detail="Invalid signature")
+
+    try:
+        ciphertext = base64.b64decode(request.ciphertext_b64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid ciphertext") from exc
+
+    actual_hash = integrity.compute_sha256_bytes(ciphertext)
+    if not integrity.hashes_match(request.integrity_hash, actual_hash):
+        _append_audit_event(
+            actor=node_id,
+            target=config.CLOUD,
+            action="integrity_mismatch",
+            status="failure",
+            details={
+                "expected_hash": request.integrity_hash,
+                "actual_hash": actual_hash,
+                "vault_version": request.vault_version,
+            },
+        )
+        raise HTTPException(status_code=409, detail="Integrity verification failed")
+
+    _claim_nonce(node_id, request.nonce, request.timestamp)
 
     stored_at = _utc_now()
     storage.save_cloud_backup(
@@ -156,7 +175,6 @@ def store_backup(request: StoreBackupRequest) -> StoreBackupResponse:
             "stored_at": stored_at.isoformat(),
         },
     )
-    _record_nonce(node_id, request.nonce, request.timestamp)
 
     _append_audit_event(
         actor=node_id,
@@ -179,12 +197,10 @@ def retrieve_backup(request: RetrieveBackupRequest) -> RetrieveBackupResponse:
     """Return stored ciphertext backup data for a registered node."""
     node_id = _require_edge_node(request.node_id)
     _require_fresh_timestamp(request.timestamp)
-    _require_unused_nonce(node_id, request.nonce, request.timestamp)
 
     public_key = _get_registered_public_key(node_id)
     signed_message = _build_retrieve_backup_message(request)
     if not _verify_request_signature(public_key, signed_message, request.signature_b64):
-        _record_nonce(node_id, request.nonce, request.timestamp)
         _append_audit_event(
             actor=node_id,
             target=config.CLOUD,
@@ -194,10 +210,10 @@ def retrieve_backup(request: RetrieveBackupRequest) -> RetrieveBackupResponse:
         )
         raise HTTPException(status_code=401, detail="Invalid signature")
 
+    _claim_nonce(node_id, request.nonce, request.timestamp)
     backup = storage.load_cloud_backup(node_id)
-    _record_nonce(node_id, request.nonce, request.timestamp)
 
-    if backup is None:
+    if not _is_valid_cloud_backup(backup):
         _append_audit_event(
             actor=node_id,
             target=config.CLOUD,
@@ -285,29 +301,24 @@ def _require_fresh_timestamp(timestamp: datetime) -> None:
         raise HTTPException(status_code=400, detail="Stale or invalid timestamp")
 
 
-def _require_unused_nonce(node_id: str, nonce: str, timestamp: datetime) -> None:
-    """Reject replayed nonces after pruning expired cache entries."""
-    entries = _prune_nonce_entries(storage.load_nonce_cache(node_id))
-    if any(entry.get("nonce") == nonce for entry in entries):
+def _claim_nonce(node_id: str, nonce: str, timestamp: datetime) -> None:
+    """Atomically reject replayed nonces and record accepted ones."""
+    with storage.file_lock(config.get_nonce_cache_path(node_id)):
+        entries = _prune_nonce_entries(storage.load_nonce_cache(node_id))
+        if any(entry.get("nonce") == nonce for entry in entries):
+            storage.save_nonce_cache(node_id, entries)
+            _append_audit_event(
+                actor=node_id,
+                target=config.CLOUD,
+                action="replay_rejected",
+                status="failure",
+                details={"nonce": nonce, "timestamp": timestamp.isoformat()},
+            )
+            raise HTTPException(status_code=409, detail="Replay detected")
+
+        entries.append({"nonce": nonce, "timestamp": timestamp.isoformat()})
+        entries = entries[-config.MAX_NONCE_CACHE_ENTRIES :]
         storage.save_nonce_cache(node_id, entries)
-        _append_audit_event(
-            actor=node_id,
-            target=config.CLOUD,
-            action="replay_rejected",
-            status="failure",
-            details={"nonce": nonce, "timestamp": timestamp.isoformat()},
-        )
-        raise HTTPException(status_code=409, detail="Replay detected")
-
-    storage.save_nonce_cache(node_id, entries)
-
-
-def _record_nonce(node_id: str, nonce: str, timestamp: datetime) -> None:
-    """Store a newly accepted nonce with bounded retention."""
-    entries = _prune_nonce_entries(storage.load_nonce_cache(node_id))
-    entries.append({"nonce": nonce, "timestamp": timestamp.isoformat()})
-    entries = entries[-config.MAX_NONCE_CACHE_ENTRIES :]
-    storage.save_nonce_cache(node_id, entries)
 
 
 def _prune_nonce_entries(entries: list[dict]) -> list[dict]:
@@ -351,8 +362,24 @@ def _load_public_key_from_b64(public_key_b64: str) -> Ed25519PublicKey:
     try:
         key_bytes = base64.b64decode(public_key_b64, validate=True)
         return Ed25519PublicKey.from_public_bytes(key_bytes)
-    except ValueError as exc:
+    except (binascii.Error, ValueError) as exc:
         raise HTTPException(status_code=400, detail="Invalid public key") from exc
+
+
+def _is_valid_cloud_backup(backup: dict | None) -> bool:
+    """Return whether stored backup data has the fields needed for retrieval."""
+    if backup is None:
+        return False
+    if not isinstance(backup.get("vault_version"), int):
+        return False
+    for field_name in ("ciphertext_b64", "integrity_hash", "stored_at"):
+        if not isinstance(backup.get(field_name), str):
+            return False
+    try:
+        datetime.fromisoformat(backup["stored_at"])
+    except ValueError:
+        return False
+    return True
 
 
 def _verify_request_signature(

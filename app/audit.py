@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from json import JSONDecodeError
 
+from app import storage
 from app.config import get_audit_log_path
 from app.models import AuditEvent, AuditLogResponse
 
@@ -49,11 +50,12 @@ def append_audit_event(node_id: str, event: AuditEvent) -> None:
     """Append a validated audit event to the node's JSON audit log."""
     ensure_audit_log_exists(node_id)
 
-    entries = _load_audit_entries(node_id)
-    entries.append(event.model_dump(mode="json"))
+    with storage.file_lock(get_audit_log_path(node_id)):
+        entries = _load_audit_entries(node_id)
+        entries.append(event.model_dump(mode="json"))
 
-    # Rewrite the full JSON array to keep the on-disk format simple.
-    _write_audit_entries(node_id, entries)
+        # Rewrite the full JSON array to keep the on-disk format simple.
+        _write_audit_entries(node_id, entries)
 
 
 def read_audit_log(node_id: str) -> AuditLogResponse:

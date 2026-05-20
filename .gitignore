@@ -9,8 +9,12 @@ env/
 
 # Runtime project data
 data/
+*.lock
 
-# VS Code / OS
+# Editor / OS
 .vscode/
+.idea/
+*.swp
+*.swo
 .DS_Store
 Thumbs.db
