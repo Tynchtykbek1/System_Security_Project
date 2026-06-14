@@ -64,7 +64,7 @@ for /L %%I in (1,1,30) do (
         echo [demo] %~2 is ready.
         exit /b 0
     )
-    timeout /t 1 /nobreak >nul
+    powershell -NoProfile -Command "Start-Sleep -Seconds 1" >nul 2>nul
 )
 echo [demo] ERROR: %~2 did not become healthy in time.
 exit /b 1
